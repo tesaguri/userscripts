@@ -4,7 +4,7 @@
 // @match       https://*.duolingo.com/*
 // @grant       none
 // @version     1.0.0
-// @updateURL   https://github.com/tesaguri/duolingo-lang-attr-user-js/raw/master/duolingo-lang-attr.user.js
+// @updateURL   https://github.com/tesaguri/userscripts/raw/main/duolingo-lang-attr.user.js
 // @author      Daiki "tesaguri" Mizukami
 // @license     GPL-3.0-only; http://www.gnu.org/licenses/gpl-3.0.txt
 // @description Inserts appropriate `lang` attributes to Duolingo's texts.
