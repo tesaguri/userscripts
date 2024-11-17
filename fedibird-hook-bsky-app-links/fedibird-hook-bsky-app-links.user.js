@@ -138,6 +138,7 @@
 
     function submitSearch(query) {
         if (!searchInput) return;
+        searchInput.focus();
         // <https://hustle.bizongo.in/simulate-react-on-change-on-controlled-components-baa336920e04>
         const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
         setValue.call(searchInput, query);
