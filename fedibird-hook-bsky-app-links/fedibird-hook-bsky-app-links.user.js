@@ -106,7 +106,7 @@
                     fetch(bridgeUrl, {
                         method: 'HEAD',
                         headers: acceptAs2Headers,
-                        referer: '',
+                        referrer: '',
                     })
                         .then(async res => {
                             if (res.ok) {
@@ -142,7 +142,7 @@
         try {
             const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
                 headers: acceptDnsJsonHeaders,
-                referer: '',
+                referrer: '',
             });
             if (res.ok) {
                 const json = await res.json();
@@ -159,7 +159,7 @@
         try {
             const res = await fetch(`https://${handle}/.well-known/atproto-did`, {
                 method: 'HEAD',
-                referer: '',
+                referrer: '',
             });
             if (res.ok) {
                 return await res.text().trim();
@@ -184,12 +184,12 @@
         if (did.startsWith('did:plc:')) {
             res = await fetch(`https://plc.directory/${did}`, {
                 headers: acceptDidHeaders,
-                referer: '',
+                referrer: '',
             });
         } else if (did.startsWith('did:web:')) {
             res = await fetch(`https://${did.split(8)}/.well-known/did.json`, {
                 headers: acceptDidHeaders,
-                referer: '',
+                referrer: '',
             });
         }
 
