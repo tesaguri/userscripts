@@ -91,11 +91,15 @@
     const acceptAs2Headers = new Headers([['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
     function hookDescendantBskyLinks(elt) {
         for (const anchor of elt.querySelectorAll('a.unhandled-link:not(.status-url-link)[href^="https://bsky.app/profile/"]')) {
-            const components = bskyPostComponents(anchor.href) || [];
-            if (components) {
-                let authority = components[0];
-                const rkey = components[1];
-                let bridgeUrl = bridgeUrlFromBskyComponents(authority, rkey);
+            const components = atComponentsFromBskyUrl(anchor.href);
+            if (!components) {
+                continue;
+            }
+            let authority = components[0];
+            const collection = components[1];
+            const rkey = components[2];
+            if (collection === 'app.bsky.feed.post') {
+                let bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
                 let verifiedBridge;
                 anchor.addEventListener('click', e => {
                     e.preventDefault();
@@ -115,10 +119,16 @@
                             }
                             if (!authority.startsWith('did:')) {
                                 authority = await resolveAtHandle(authority);
-                                bridgeUrl = bridgeUrlFromBskyComponents(authority, rkey);
+                                bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
                             }
-                            open(await pdsXrpcUrlForBskyComponents(authority, rkey));
+                            open(await pdsXrpcUrlForComponents(authority, collection, rkey));
                         });
+                });
+            } else {
+                anchor.addEventListener('click', e => {
+                    e.preventDefault();
+                    pdsXrpcUrlForComponents(authority, collection, rkey)
+                        .then(open);
                 });
             }
         }
@@ -211,9 +221,21 @@
         }
     }
 
+    async function pdsXrpcUrlForComponents(did, collection, rkey) {
+        const pds = pdsFromDidDoc(await resolveDid(did));
+        return rkey === undefined
+            ? `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`
+            : `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
+    }
+
+    function bridgeUrlFromComponents(authority, collection, rkey) {
+        const at = rkey === undefined ? `at://${authority}` : `at://${authority}/${collection}/${rkey}`;
+        return `https://bsky.brid.gy/convert/ap/${at}`;
+    }
+
     // UTILITIES - Bluesky
 
-    function bskyPostComponents(url) {
+    function atComponentsFromBskyUrl(url) {
         const segments = url.split('/');
         const authority = segments[4];
         if (authority === undefined) {
@@ -224,20 +246,13 @@
             return [authority];
         }
         const rkey = segments[6];
-        if (collection === 'post' && rkey !== undefined) {
-            return [authority, rkey];
+        if (rkey !== undefined) {
+            switch (collection) {
+                case 'post':
+                    return [authority, 'app.bsky.feed.post', rkey];
+                case 'feed':
+                    return [authority, 'app.bsky.feed.generator', rkey];
+            }
         }
-    }
-
-    function bridgeUrlFromBskyComponents(authority, rkey) {
-        const at = rkey === undefined ? `at://${authority}` : `at://${authority}/app.bsky.feed.post/${rkey}`;
-        return `https://bsky.brid.gy/convert/ap/${at}`;
-    }
-
-    async function pdsXrpcUrlForBskyComponents(did, rkey) {
-        const pds = pdsFromDidDoc(await resolveDid(did));
-        return rkey === undefined
-            ? `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`
-            : `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=app.bsky.feed.post&rkey=${rkey}`;
     }
 })();
