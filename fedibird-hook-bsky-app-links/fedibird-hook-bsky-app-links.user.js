@@ -98,7 +98,7 @@
             let authority = components[0];
             const collection = components[1];
             const rkey = components[2];
-            if (collection === 'app.bsky.feed.post') {
+            if (collection === undefined || collection === 'app.bsky.feed.post') {
                 let bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
                 let verifiedBridge;
                 anchor.addEventListener('click', e => {
@@ -191,19 +191,19 @@
 
     const acceptDidHeaders = new Headers([['accept', 'application/did+ld+json']]);
     async function resolveDid(did) {
-        let res;
-
+        let url;
         if (did.startsWith('did:plc:')) {
-            res = await fetch(`https://plc.directory/${did}`, {
-                headers: acceptDidHeaders,
-                referrer: '',
-            });
+            url = `https://plc.directory/${did}`;
         } else if (did.startsWith('did:web:')) {
-            res = await fetch(`https://${did.split(8)}/.well-known/did.json`, {
-                headers: acceptDidHeaders,
-                referrer: '',
-            });
+            url = `https://${did.split(8)}/.well-known/did.json`;
+        } else {
+            throw new Error(`Unrecognized DID: ${did}`);
         }
+
+        const res = await fetch(url, {
+            headers: acceptDidHeaders,
+            referrer: '',
+        });
 
         if (!res.ok) {
             throw new Error(`Encountered HTTP ${res.status} status while resolving DID ${did}`);
