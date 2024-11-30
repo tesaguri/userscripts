@@ -4,7 +4,7 @@
 // @match       https://fedibird.com/web/*
 // @grant       none
 // @version     1.0.0
-// @updateURL   https://github.com/tesaguri/userscripts/raw/main/fedibird-hook-bsky-app-links/fedibird-hook-bsky-app-links.user.js
+// @updateURL   https://github.com/tesaguri/userscripts/raw/main/fedibird-hook-bsky-app-links/index.user.js
 // @author      Daiki "tesaguri" Mizukami
 // @license     GPL-3.0-only; https://www.gnu.org/licenses/gpl-3.0.txt
 // @description Open bsky.app links via Bridgy Fed or PDS
