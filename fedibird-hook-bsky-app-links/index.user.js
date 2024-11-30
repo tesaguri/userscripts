@@ -121,17 +121,24 @@
                                 authority = await resolveAtHandle(authority);
                                 bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
                             }
-                            open(await pdsXrpcUrlForComponents(authority, collection, rkey));
+                            safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
                         });
                 });
             } else {
                 anchor.addEventListener('click', e => {
                     e.preventDefault();
                     pdsXrpcUrlForComponents(authority, collection, rkey)
-                        .then(open);
+                        .then(safeOpen);
                 });
             }
         }
+    }
+
+    // UTILITIES - Generic
+
+    function safeOpen(url, target, windowFeatures) {
+        const defaultWindowFeatures = 'noreferrer';
+        return open(url, target, windowFeatures ? `${defaultWindowFeatures},${windowFeatures}` : defaultWindowFeatures);
     }
 
     // UTILITIES - Fedibird
