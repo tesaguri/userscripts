@@ -10,18 +10,31 @@
 // @description Open bsky.app links via Bridgy Fed or PDS
 // ==/UserScript==
 
+/**
+ * @template T
+ * @typedef {T[] | T | null} LdSet
+ */
+/**
+ * @typedef {{ type: string | string[], serviceEndpoint: string }} Service
+ * @typedef {{ service?: LdSet<Service> }} DidDocument
+ */
+
 (() => {
     // INIT
 
-    let searchInput = document.getElementsByClassName('search__input')[0];
+    /** @type {HTMLInputElement | null} */
+    let searchInput = document.querySelector('input.search__input');
     if (!searchInput) {
+        /** @type {MutationCallback} */
         function searchForSearchInput(records, observer) {
             for (const { addedNodes } of records) {
                 for (const node of addedNodes) {
-                    searchInput = node.getElementsByClassName('search__input')[0];
-                    if (searchInput) {
-                        observer.disconnect();
-                        return;
+                    if (node instanceof Element) {
+                        searchInput = node.querySelector('input.search__input');
+                        if (searchInput) {
+                            observer.disconnect();
+                            return;
+                        }
                     }
                 }
             }
@@ -65,6 +78,12 @@
 
     // UTILITIES - Generic
 
+    /**
+     * @param {string | URL} [url]
+     * @param {string} [target]
+     * @param {string} [windowFeatures]
+     * @returns {ReturnType<typeof open>}
+     */
     function safeOpen(url, target, windowFeatures) {
         const defaultWindowFeatures = 'noreferrer';
         return open(url, target, windowFeatures ? `${defaultWindowFeatures},${windowFeatures}` : defaultWindowFeatures);
@@ -72,11 +91,16 @@
 
     // UTILITIES - Fedibird
 
+    /**
+     * @param {string} query
+     * @returns {void}
+     */
     function submitSearch(query) {
         if (!searchInput) return;
         searchInput.focus();
         // <https://hustle.bizongo.in/simulate-react-on-change-on-controlled-components-baa336920e04>
-        const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        const valueProperty = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
+        const setValue = /** @type {NonNullable<PropertyDescriptor["set"]>} */ (valueProperty.set);
         setValue.call(searchInput, query);
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         // FIXME: Doesn't work
@@ -86,7 +110,12 @@
     // UTILITIES - AT Protocol
 
     const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
+    /** @type {Record<string, string>} */
     const resolvedHandles = {};
+    /**
+     * @param {string} handle
+     * @returns {Promise<string | void>}
+     */
     async function resolveAtHandle(handle) {
         handle = handle.toLowerCase();
         if (handle in resolvedHandles) {
@@ -99,6 +128,10 @@
         }
     }
 
+    /**
+     * @param {string} handle
+     * @returns {Promise<string | void>}
+     */
     async function resolveHandleInner(handle) {
         try {
             const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
@@ -122,13 +155,17 @@
                 referrer: '',
             });
             if (res.ok) {
-                return await res.text().trim();
+                return (await res.text()).trim();
             }
         } catch {
             // noop
         }
     }
 
+    /**
+     * @param {DidDocument} doc
+     * @returns {string | void}
+     */
     function pdsFromDidDoc(doc) {
         for (const service of asArray(doc.service)) {
             if (asArray(service.type).includes('AtprotoPersonalDataServer')) {
@@ -138,12 +175,16 @@
     }
 
     const acceptDidHeaders = new Headers([['accept', 'application/did+ld+json']]);
+    /**
+     * @param {string} did
+     * @returns {Promise<DidDocument>}
+     */
     async function resolveDid(did) {
         let url;
         if (did.startsWith('did:plc:')) {
             url = `https://plc.directory/${did}`;
         } else if (did.startsWith('did:web:')) {
-            url = `https://${did.split(8)}/.well-known/did.json`;
+            url = `https://${did.slice(8)}/.well-known/did.json`;
         } else {
             throw new Error(`Unrecognized DID: ${did}`);
         }
@@ -160,6 +201,11 @@
         return await res.json();
     }
 
+    /**
+     * @template T
+     * @param {LdSet<T> | undefined} value
+     * @returns T[]
+     */
     function asArray(value) {
         if (value instanceof Array) {
             return value;
@@ -170,6 +216,24 @@
         }
     }
 
+    /**
+     * @overload
+     * @param {string} authority
+     * @returns {Promise<string>}
+     */
+    /**
+     * @overload
+     * @param {string} authority
+     * @param {string | undefined} collection
+     * @param {string | undefined} rkey
+     * @returns {Promise<string>}
+     */
+    /**
+     * @param {string} authority
+     * @param {string} [collection]
+     * @param {string} [rkey]
+     * @returns {Promise<string>}
+     */
     async function pdsXrpcUrlForComponents(authority, collection, rkey) {
         let did;
         if (authority.startsWith('did:')) {
@@ -186,12 +250,34 @@
             : `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
     }
 
+    /**
+     * @overload
+     * @param {string} authority
+     * @returns {string}
+     */
+    /**
+     * @overload
+     * @param {string} authority
+     * @param {string | undefined} collection
+     * @param {string | undefined} rkey
+     * @returns {string}
+     */
+    /**
+     * @param {string} authority
+     * @param {string} [collection]
+     * @param {string} [rkey]
+     * @returns {string}
+     */
     function bridgeUrlFromComponents(authority, collection, rkey) {
         const at = rkey === undefined ? `at://${authority}` : `at://${authority}/${collection}/${rkey}`;
         return `https://bsky.brid.gy/convert/ap/${at}`;
     }
 
     const bridgedAuthorities = new Set();
+    /**
+     * @param {string} authority
+     * @returns {Promise<boolean>}
+     */
     async function checkBridge(authority) {
         return bridgedAuthorities.has(authority) ||
             fetch(bridgeUrlFromComponents(authority), {
@@ -210,6 +296,10 @@
 
     // UTILITIES - Bluesky
 
+    /**
+     * @param {string} url
+     * @returns {[string] | [string, string, string] | void}
+     */
     function atComponentsFromBskyUrl(url) {
         const segments = url.split('/');
         const authority = segments[4];
