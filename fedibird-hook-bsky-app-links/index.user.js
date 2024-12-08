@@ -119,7 +119,6 @@
         }
         try {
             const res = await fetch(`https://${handle}/.well-known/atproto-did`, {
-                method: 'HEAD',
                 referrer: '',
             });
             if (res.ok) {
