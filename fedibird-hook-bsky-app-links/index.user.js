@@ -33,106 +33,35 @@
             });
     }
 
-    const columnsArea = document.getElementsByClassName('columns-area')[0];
-    if (columnsArea) {
-        new MutationObserver(observeNewColumns)
-            .observe(columnsArea, {
-                childList: true,
-            });
-    } else {
-        function searchForColumnsArea(records, observer) {
-            for (const { addedNodes } of records) {
-                for (const node of addedNodes) {
-                    if (node.classList?.contains('columns-area')) {
-                        new MutationObserver(observeNewColumns)
-                            .observe(node, {
-                                childList: true,
-                            });
-                        observer.disconnect();
-                    }
-                }
-            }
-        }
-        new MutationObserver(searchForColumnsArea)
-            .observe(document.body, {
-                childList: true,
-                subtree: true,
-            });
-    }
-
-    const feedObserver = new MutationObserver(observeNewArticles);
-    function observeNewColumns(records, _observer) {
-        for (const { addedNodes } of records) {
-            for (const node of addedNodes) {
-                if (node.classList?.contains('column')) {
-                    const feed = node.querySelector('.item-list[role="feed"]');
-                    if (feed) {
-                        feedObserver.observe(feed, {
-                            childList: true,
-                        });
-                    } else if (node instanceof Element) {
-                        hookDescendantBskyLinks(node);
-                    }
-                }
-            }
-        }
-    }
-
-    function observeNewArticles(records, _observer) {
-        for (const { addedNodes } of records) {
-            for (const node of addedNodes) {
-                if (node instanceof Element) {
-                    hookDescendantBskyLinks(node);
-                }
-            }
-        }
-    }
-
     const acceptAs2Headers = new Headers([['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
-    function hookDescendantBskyLinks(elt) {
-        for (const anchor of elt.querySelectorAll('a.unhandled-link:not(.status-url-link)[href^="https://bsky.app/profile/"]')) {
-            const components = atComponentsFromBskyUrl(anchor.href);
-            if (!components) {
-                continue;
-            }
-            let authority = components[0];
-            const collection = components[1];
-            const rkey = components[2];
-            if (collection === undefined || collection === 'app.bsky.feed.post') {
-                let bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
-                let verifiedBridge;
-                anchor.addEventListener('click', e => {
-                    e.preventDefault();
-                    if (verifiedBridge) {
-                        submitSearch(bridgeUrl);
-                        return;
-                    }
-                    fetch(bridgeUrl, {
-                        method: 'HEAD',
-                        headers: acceptAs2Headers,
-                        referrer: '',
-                    })
-                        .then(async res => {
-                            if (res.ok) {
-                                verifiedBridge = true;
-                                return submitSearch(bridgeUrl);
-                            }
-                            if (!authority.startsWith('did:')) {
-                                authority = await resolveAtHandle(authority);
-                                bridgeUrl = bridgeUrlFromComponents(authority, collection, rkey);
-                            }
-                            safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
-                        });
-                });
-            } else {
-                anchor.addEventListener('click', e => {
-                    e.preventDefault();
-                    pdsXrpcUrlForComponents(authority, collection, rkey)
-                        .then(safeOpen);
-                });
-            }
+    addEventListener('click', e => {
+        const target = e.target;
+        if (!(target instanceof HTMLAnchorElement) || !target.classList.contains('unhandled-link') || !target.href.startsWith('https://bsky.app/profile/') || target.classList.contains('status-url-link')) {
+            return;
         }
-    }
+
+        const components = atComponentsFromBskyUrl(target.href);
+        if (!components) {
+            return;
+        }
+
+        e.preventDefault();
+
+        let authority = components[0];
+        const collection = components[1];
+        const rkey = components[2];
+        if (collection === undefined || collection === 'app.bsky.feed.post') {
+            checkBridge(authority)
+                .then(async isBridged => {
+                    if (isBridged) {
+                        submitSearch(bridgeUrlFromComponents(authority, collection, rkey));
+                    }
+                    safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
+                });
+        } else {
+            pdsXrpcUrlForComponents(authority, collection, rkey).then(safeOpen);
+        }
+    });
 
     // UTILITIES - Generic
 
@@ -157,7 +86,20 @@
     // UTILITIES - AT Protocol
 
     const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
+    const resolvedHandles = {};
     async function resolveAtHandle(handle) {
+        handle = handle.toLowerCase();
+        if (handle in resolvedHandles) {
+            return resolvedHandles[handle];
+        }
+        const ret = await resolveHandleInner(handle);
+        if (ret) {
+            resolvedHandles[handle] = ret;
+            return ret;
+        }
+    }
+
+    async function resolveHandleInner(handle) {
         try {
             const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
                 headers: acceptDnsJsonHeaders,
@@ -229,7 +171,16 @@
         }
     }
 
-    async function pdsXrpcUrlForComponents(did, collection, rkey) {
+    async function pdsXrpcUrlForComponents(authority, collection, rkey) {
+        let did;
+        if (authority.startsWith('did:')) {
+            did = authority;
+        } else {
+            did = await resolveAtHandle(authority);
+            if (!did) {
+                throw Error(`Unable to resolve handle at://${authority}`);
+            }
+        }
         const pds = pdsFromDidDoc(await resolveDid(did));
         return rkey === undefined
             ? `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`
@@ -239,6 +190,23 @@
     function bridgeUrlFromComponents(authority, collection, rkey) {
         const at = rkey === undefined ? `at://${authority}` : `at://${authority}/${collection}/${rkey}`;
         return `https://bsky.brid.gy/convert/ap/${at}`;
+    }
+
+    const bridgedAuthorities = new Set();
+    async function checkBridge(authority) {
+        return bridgedAuthorities.has(authority) ||
+            fetch(bridgeUrlFromComponents(authority), {
+                method: 'HEAD',
+                headers: acceptAs2Headers,
+                referrer: '',
+            })
+                .then(res => {
+                    if (res.ok) {
+                        bridgedAuthorities.add(authority);
+                        return true;
+                    }
+                    return false;
+                });
     }
 
     // UTILITIES - Bluesky
