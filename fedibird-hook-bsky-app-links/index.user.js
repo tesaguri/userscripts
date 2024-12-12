@@ -68,6 +68,7 @@
                 .then(async isBridged => {
                     if (isBridged) {
                         submitSearch(bridgeUrlFromComponents(authority, collection, rkey));
+                        return;
                     }
                     safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
                 });
