@@ -107,8 +107,8 @@
         if (!searchInput) return;
         searchInput.focus();
         // <https://hustle.bizongo.in/simulate-react-on-change-on-controlled-components-baa336920e04>
-        const valueProperty = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
-        const setValue = /** @type {NonNullable<PropertyDescriptor["set"]>} */ (valueProperty.set);
+        const valueProperty = /** @type {NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
+        const setValue = /** @type {NonNullable<typeof valueProperty.set>} */ (valueProperty.set);
         setValue.call(searchInput, query);
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         // FIXME: Doesn't work
