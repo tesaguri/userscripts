@@ -12,11 +12,18 @@
 
 /**
  * @template T
- * @typedef {T[] | T | null} LdSet
+ * @typedef {T[] | T | null} LdOptional
  */
 /**
- * @typedef {{ type: string | string[], serviceEndpoint: string }} Service
- * @typedef {{ service?: LdSet<Service> }} DidDocument
+ * @template T
+ * @typedef {[T, ...T[]] | T} LdRequired
+ */
+/**
+ * @typedef {string | { id: string } | { '@id': string }} LdId
+ */
+/**
+ * @typedef {{ type: LdRequired<string>, serviceEndpoint: LdRequired<LdId> }} Service
+ * @typedef {{ service?: LdOptional<Service> }} DidDocument
  */
 
 (() => {
@@ -138,9 +145,23 @@
     }
 
     /**
+     * @param {LdId} node
+     * @returns {string | void}
+     */
+    function idOf(node) {
+        if (typeof node === 'string') {
+            return node;
+        } else if ('@id' in node) {
+            return node['@id'];
+        } else if ('id' in node) {
+            return node.id;
+        }
+    }
+
+    /**
      * @template T
-     * @param {LdSet<T> | undefined} value
-     * @returns T[]
+     * @param {LdOptional<T> | undefined} value
+     * @returns {T[]}
      */
     function asArray(value) {
         if (value instanceof Array) {
@@ -149,6 +170,33 @@
             return [];
         } else {
             return [value];
+        }
+    }
+
+    /**
+     * @template T
+     * @overload
+     * @param {LdRequired<T>} set
+     * @returns {T}
+     */
+    /**
+     * @template T
+     * @overload
+     * @param {LdOptional<T> | undefined} set
+     * @returns {T | null}
+     */
+    /**
+     * @template T
+     * @param {LdOptional<T> | undefined} set
+     * @returns {T | null}
+     */
+    function firstOfSet(set) {
+        if (set instanceof Array) {
+            return set[0];
+        } else if (set === null || set === undefined) {
+            return null;
+        } else {
+            return set;
         }
     }
 
@@ -214,7 +262,7 @@
     function pdsFromDidDoc(doc) {
         for (const service of asArray(doc.service)) {
             if (asArray(service.type).includes('AtprotoPersonalDataServer')) {
-                return service.serviceEndpoint;
+                return idOf(firstOfSet(service.serviceEndpoint));
             }
         }
     }
