@@ -108,72 +108,7 @@
         searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
     }
 
-    // UTILITIES - AT Protocol
-
-    const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
-    /** @type {Record<string, string>} */
-    const resolvedHandles = {};
-    /**
-     * @param {string} handle
-     * @returns {Promise<string | void>}
-     */
-    async function resolveAtHandle(handle) {
-        handle = handle.toLowerCase();
-        if (handle in resolvedHandles) {
-            return resolvedHandles[handle];
-        }
-        const ret = await resolveHandleInner(handle);
-        if (ret) {
-            resolvedHandles[handle] = ret;
-            return ret;
-        }
-    }
-
-    /**
-     * @param {string} handle
-     * @returns {Promise<string | void>}
-     */
-    async function resolveHandleInner(handle) {
-        try {
-            const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
-                headers: acceptDnsJsonHeaders,
-                referrer: '',
-            });
-            if (res.ok) {
-                const json = await res.json();
-                const expectedName = `_atproto.${handle}`;
-                for (const answer of json?.Answer ?? []) {
-                    if (answer.name === expectedName && answer.type === 16 && answer.data?.startsWith('"did=') && answer.data.endsWith('"')) {
-                        return answer.data.slice(5, -1);
-                    }
-                }
-            }
-        } catch {
-            // Fall back on well-known
-        }
-        try {
-            const res = await fetch(`https://${handle}/.well-known/atproto-did`, {
-                referrer: '',
-            });
-            if (res.ok) {
-                return (await res.text()).trim();
-            }
-        } catch {
-            // noop
-        }
-    }
-
-    /**
-     * @param {DidDocument} doc
-     * @returns {string | void}
-     */
-    function pdsFromDidDoc(doc) {
-        for (const service of asArray(doc.service)) {
-            if (asArray(service.type).includes('AtprotoPersonalDataServer')) {
-                return service.serviceEndpoint;
-            }
-        }
-    }
+    // UTILITIES - DID/JSON-LD
 
     const acceptDidHeaders = new Headers([['accept', 'application/did+ld+json']]);
     /**
@@ -217,6 +152,73 @@
         }
     }
 
+    // UTILITIES - AT Protocol
+
+    const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
+    /** @type {Record<string, string>} */
+    const resolvedHandles = {};
+    /**
+     * @param {string} handle
+     * @returns {Promise<string | void>}
+     */
+    async function resolveAtHandle(handle) {
+        handle = handle.toLowerCase();
+        if (handle in resolvedHandles) {
+            return resolvedHandles[handle];
+        }
+        const ret = await resolveAtHandleInner(handle);
+        if (ret) {
+            resolvedHandles[handle] = ret;
+            return ret;
+        }
+    }
+
+    /**
+     * @param {string} handle
+     * @returns {Promise<string | void>}
+     */
+    async function resolveAtHandleInner(handle) {
+        try {
+            const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
+                headers: acceptDnsJsonHeaders,
+                referrer: '',
+            });
+            if (res.ok) {
+                const json = await res.json();
+                const expectedName = `_atproto.${handle}`;
+                for (const answer of json?.Answer ?? []) {
+                    if (answer.name === expectedName && answer.type === 16 && answer.data?.startsWith('"did=') && answer.data.endsWith('"')) {
+                        return answer.data.slice(5, -1);
+                    }
+                }
+            }
+        } catch {
+            // Fall back on well-known
+        }
+        try {
+            const res = await fetch(`https://${handle}/.well-known/atproto-did`, {
+                referrer: '',
+            });
+            if (res.ok) {
+                return (await res.text()).trim();
+            }
+        } catch {
+            // noop
+        }
+    }
+
+    /**
+     * @param {DidDocument} doc
+     * @returns {string | void}
+     */
+    function pdsFromDidDoc(doc) {
+        for (const service of asArray(doc.service)) {
+            if (asArray(service.type).includes('AtprotoPersonalDataServer')) {
+                return service.serviceEndpoint;
+            }
+        }
+    }
+
     /**
      * @overload
      * @param {string} authority
@@ -250,6 +252,8 @@
             ? `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`
             : `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
     }
+
+    // UTILITIES - Bridgy Fed
 
     /**
      * @overload
