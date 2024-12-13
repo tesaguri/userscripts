@@ -322,8 +322,10 @@
      * @returns {string}
      */
     function bridgeUrlFromComponents(authority, collection, rkey) {
-        const at = rkey === undefined ? `at://${authority}` : `at://${authority}/${collection}/${rkey}`;
-        return `https://bsky.brid.gy/convert/ap/${at}`;
+        return rkey === undefined
+            ? `https://bsky.brid.gy/ap/${authority}`
+            : `https://bsky.brid.gy/convert/ap/at://${authority}/${collection}/${rkey}`;
+
     }
 
     const bridgedAuthorities = new Set();
