@@ -111,8 +111,7 @@
         const setValue = /** @type {NonNullable<typeof valueProperty.set>} */ (valueProperty.set);
         setValue.call(searchInput, query);
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        // FIXME: Doesn't work
-        searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
+        searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
     }
 
     // UTILITIES - DID/JSON-LD
