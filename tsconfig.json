@@ -1,15 +1,12 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "useDefineForClassFields": true,
-    "module": "nodenext",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "esModuleInterop": true,
+    "module": "esnext",
     "checkJs": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": true,
     "strict": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true
   },

@@ -182,18 +182,16 @@
      * @template T
      * @overload
      * @param {LdOptional<T> | undefined} set
-     * @returns {T | null}
+     * @returns {(T | undefined)?}
      */
     /**
      * @template T
      * @param {LdOptional<T> | undefined} set
-     * @returns {T | null}
+     * @returns {(T | undefined)?}
      */
     function firstOfSet(set) {
         if (set instanceof Array) {
-            return set[0];
-        } else if (set === null || set === undefined) {
-            return null;
+            return set.find(x => x !== null);
         } else {
             return set;
         }
