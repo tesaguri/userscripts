@@ -3,6 +3,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
+		"better-typescript-lib": "^2.10.0",
 		"typescript": "^5.7.2"
 	}
 }

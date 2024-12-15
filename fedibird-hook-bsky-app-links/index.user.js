@@ -12,18 +12,17 @@
 
 /**
  * @template T
- * @typedef {T[] | T | null} LdOptional
+ * @typedef {(T | null)[] | T?} LdOptional
  */
 /**
  * @template T
- * @typedef {[T, ...T[]] | T} LdRequired
+ * @typedef {[...(T | null)[], T, ...(T | null)[]] | T} LdRequired
  */
 /**
- * @typedef {string | { id: string } | { '@id': string }} LdId
- */
-/**
+ * @typedef {string | { '@id': string } | { id: string }} LdId
+ * @typedef {`did:${string}`} DidString
  * @typedef {{ type: LdRequired<string>, serviceEndpoint: LdRequired<LdId> }} Service
- * @typedef {{ service?: LdOptional<Service> }} DidDocument
+ * @typedef {LdId & { service?: LdOptional<Service> }} DidDocument
  */
 
 (() => {
@@ -116,9 +115,17 @@
 
     // UTILITIES - DID/JSON-LD
 
+    /**
+     * @param {string} s
+     * @returns {s is DidString}
+     */
+    function isDidString(s) {
+        return s.startsWith('did:');
+    }
+
     const acceptDidHeaders = new Headers([['accept', 'application/did+ld+json']]);
     /**
-     * @param {string} did
+     * @param {DidString} did
      * @returns {Promise<DidDocument>}
      */
     async function resolveDid(did) {
@@ -140,19 +147,59 @@
             throw new Error(`Encountered HTTP ${res.status} status while resolving DID ${did}`);
         }
 
-        return await res.json();
+        const ret = await res.json();
+        assertIsDidDocument(ret);
+        return ret;
+    }
+
+    /**
+     * @param {any} x
+     * @returns {asserts x is LdId}
+     */
+    function assertIsId(x) {
+        if (!(
+            typeof x === 'string' ||
+            ( '@id' in x && typeof x['@id'] === 'string') ||
+            ( 'id' in x && typeof x.id === 'string')
+        )) {
+            throw Error('Argument is not an `@id`');
+        }
+    }
+
+    /**
+     * @param {any} x
+     * @returns {asserts x is DidDocument}
+     */
+    function assertIsDidDocument(x) {
+        assertIsId(x);
+        // @ts-expect-error // implicitly asserting that `x` is an object.
+        'service' in x
+            && (x.service === null || asArray(x.service).forEach(assertIsService));
+    }
+
+    /**
+     * @param {any} x
+     * @returns {asserts x is Service}
+     */
+    function assertIsService(x) {
+        if (typeof firstOfSet(x.type) !== 'string') {
+            throw Error('Service must have a type');
+        }
+        for (const serviceEndpoint of asArray(x.serviceEndpoint)) {
+            assertIsId(serviceEndpoint);
+        }
     }
 
     /**
      * @param {LdId} node
-     * @returns {string | void}
+     * @returns {string}
      */
     function idOf(node) {
         if (typeof node === 'string') {
             return node;
         } else if ('@id' in node) {
             return node['@id'];
-        } else if ('id' in node) {
+        } else {
             return node.id;
         }
     }
@@ -160,7 +207,7 @@
     /**
      * @template T
      * @param {LdOptional<T> | undefined} value
-     * @returns {T[]}
+     * @returns {(T | null)[]}
      */
     function asArray(value) {
         if (value instanceof Array) {
@@ -200,11 +247,11 @@
     // UTILITIES - AT Protocol
 
     const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
-    /** @type {Record<string, string>} */
+    /** @type {Record<string, DidString>} */
     const resolvedHandles = {};
     /**
      * @param {string} handle
-     * @returns {Promise<string | void>}
+     * @returns {Promise<DidString | void>}
      */
     async function resolveAtHandle(handle) {
         handle = handle.toLowerCase();
@@ -220,7 +267,7 @@
 
     /**
      * @param {string} handle
-     * @returns {Promise<string | void>}
+     * @returns {Promise<DidString | void>}
      */
     async function resolveAtHandleInner(handle) {
         try {
@@ -229,11 +276,17 @@
                 referrer: '',
             });
             if (res.ok) {
-                const json = await res.json();
-                const expectedName = `_atproto.${handle}`;
-                for (const answer of json?.Answer ?? []) {
-                    if (answer.name === expectedName && answer.type === 16 && answer.data?.startsWith('"did=') && answer.data.endsWith('"')) {
-                        return answer.data.slice(5, -1);
+                // We are intentionally loose about the `any` type here because a `TypeError` would
+                // be caught by the `try` block just fine.
+                const answers = /** @type {any} */ (await res.json()).Answer;
+                if (answers instanceof Array) {
+                    const expectedName = `_atproto.${handle}`;
+                    for (const answer of answers) {
+                        /** @type {any} */
+                        const ans = answer;
+                        if (ans.name === expectedName && ans.type === 16 && ans.data?.startsWith('"did=did:') && ans.data.endsWith('"')) {
+                            return ans.data.slice(5, -1);
+                        }
                     }
                 }
             }
@@ -245,7 +298,10 @@
                 referrer: '',
             });
             if (res.ok) {
-                return (await res.text()).trim();
+                const body = (await res.text()).trim();
+                if (isDidString(body)) {
+                    return body;
+                }
             }
         } catch {
             // noop
@@ -257,10 +313,10 @@
      * @returns {string | void}
      */
     function pdsFromDidDoc(doc) {
-        for (const service of asArray(doc.service)) {
-            if (asArray(service.type).includes('AtprotoPersonalDataServer')) {
-                return idOf(firstOfSet(service.serviceEndpoint));
-            }
+        const service = asArray(doc.service)
+            .find(service => asArray(service?.type).includes('AtprotoPersonalDataServer'));
+        if (service) {
+            return idOf(firstOfSet(/** @type {Service} */ (service).serviceEndpoint));
         }
     }
 
@@ -284,7 +340,7 @@
      */
     async function pdsXrpcUrlForComponents(authority, collection, rkey) {
         let did;
-        if (authority.startsWith('did:')) {
+        if (isDidString(authority)) {
             did = authority;
         } else {
             did = await resolveAtHandle(authority);
