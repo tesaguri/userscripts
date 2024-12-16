@@ -29,30 +29,6 @@
 (() => {
     // INIT
 
-    /** @type {HTMLInputElement | null} */
-    let searchInput = document.querySelector('input.search__input');
-    if (!searchInput) {
-        /** @type {MutationCallback} */
-        function searchForSearchInput(records, observer) {
-            for (const { addedNodes } of records) {
-                for (const node of addedNodes) {
-                    if (node instanceof Element) {
-                        searchInput = node.querySelector('input.search__input');
-                        if (searchInput) {
-                            observer.disconnect();
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        new MutationObserver(searchForSearchInput)
-            .observe(document.body, {
-                childList: true,
-                subtree: true,
-            });
-    }
-
     const acceptAs2Headers = new Headers([['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
     addEventListener('click', e => {
         const target = e.target;
@@ -104,14 +80,20 @@
      * @returns {void}
      */
     function submitSearch(query) {
-        if (!searchInput) return;
-        searchInput.focus();
+        /** @type {HTMLInputElement | null} */
+        const input = document.querySelector('input.search__input');
+        if (!input) {
+            return;
+        }
+
+        input.focus();
+
         // <https://hustle.bizongo.in/simulate-react-on-change-on-controlled-components-baa336920e04>
         const valueProperty = /** @type {NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
         const setValue = /** @type {NonNullable<typeof valueProperty.set>} */ (valueProperty.set);
-        setValue.call(searchInput, query);
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+        setValue.call(input, query);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
     }
 
     // UTILITIES - DID/JSON-LD
