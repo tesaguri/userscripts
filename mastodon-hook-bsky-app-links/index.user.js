@@ -316,7 +316,7 @@
         const service = asArray(doc.service)
             .find(service => asArray(service?.type).includes('AtprotoPersonalDataServer'));
         if (service) {
-            return idOf(firstOfSet(/** @type {Service} */ (service).serviceEndpoint));
+            return idOf(firstOfSet(service.serviceEndpoint));
         }
     }
 
