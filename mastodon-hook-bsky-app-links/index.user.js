@@ -20,8 +20,9 @@
  */
 /**
  * @typedef {string | { '@id': string } | { id: string }} LdId
+ * @typedef {{ '@type': string[] | string } | { type: string[] | string }} HasLdType // `@type` cannot have `null`.
  * @typedef {`did:${string}`} DidString
- * @typedef {{ type: LdRequired<string>, serviceEndpoint: LdRequired<LdId> }} Service
+ * @typedef {HasLdType & { serviceEndpoint: LdRequired<LdId> }} Service
  * @typedef {LdId & { service?: LdOptional<Service> }} DidDocument
  */
 
@@ -156,13 +157,34 @@
      * @param {any} x
      * @returns {asserts x is LdId}
      */
-    function assertIsId(x) {
-        if (!(
-            typeof x === 'string' ||
-            ( '@id' in x && typeof x['@id'] === 'string') ||
-            ( 'id' in x && typeof x.id === 'string')
+    function assertIsLdId(x) {
+        if (typeof x !== 'string' && (
+            ('@id' in x && typeof x['@id'] !== 'string') ||
+            ('id' in x && typeof x.id !== 'string')
         )) {
             throw Error('Argument is not an `@id`');
+        }
+    }
+
+    /**
+     * @param {any} x
+     * @returns {asserts x is HasLdType}
+     */
+    function assertHasLdType(x) {
+        if (('@type' in x && !isLdTypeValue(x['@type'])) || ('type' in x && !isLdTypeValue(x.type))) {
+            throw Error('@type must be a string or an array of strings');
+        }
+    }
+
+    /**
+     * @param {any} t
+     * @returns {t is string[] | string}
+     */
+    function isLdTypeValue(t) {
+        if (t instanceof Array) {
+            return t.every(x => typeof x === 'string');
+        } else {
+            return typeof t === 'string';
         }
     }
 
@@ -171,7 +193,7 @@
      * @returns {asserts x is DidDocument}
      */
     function assertIsDidDocument(x) {
-        assertIsId(x);
+        assertIsLdId(x);
         // @ts-expect-error // implicitly asserting that `x` is an object.
         'service' in x
             && (x.service === null || asArray(x.service).forEach(assertIsService));
@@ -182,11 +204,11 @@
      * @returns {asserts x is Service}
      */
     function assertIsService(x) {
-        if (typeof firstOfSet(x.type) !== 'string') {
-            throw Error('Service must have a type');
-        }
-        for (const serviceEndpoint of asArray(x.serviceEndpoint)) {
-            assertIsId(serviceEndpoint);
+        assertHasLdType(x);
+        if ('serviceEndpoint' in x) {
+            for (const serviceEndpoint of asArray(x.serviceEndpoint)) {
+                assertIsLdId(serviceEndpoint);
+            }
         }
     }
 
@@ -194,7 +216,7 @@
      * @param {LdId} node
      * @returns {string}
      */
-    function idOf(node) {
+    function ldIdOf(node) {
         if (typeof node === 'string') {
             return node;
         } else if ('@id' in node) {
@@ -204,6 +226,25 @@
         }
     }
 
+    /**
+     * @param {HasLdType} node
+     * @returns {string[]}
+     */
+    function ldTypeOf(node) {
+        return '@type' in node ? asArray(node['@type']) : asArray(node.type);
+    }
+
+    /**
+     * @template T
+     * @overload
+     * @param {LdRequired<T>} value
+     * @returns {T[]}
+     */
+    /**
+     * @template T
+     * @param {LdOptional<T> | undefined} value
+     * @returns {(T | null)[]}
+     */
     /**
      * @template T
      * @param {LdOptional<T> | undefined} value
@@ -314,9 +355,9 @@
      */
     function pdsFromDidDoc(doc) {
         const service = asArray(doc.service)
-            .find(service => asArray(service?.type).includes('AtprotoPersonalDataServer'));
+            .find(service => !!service && ldTypeOf(service).includes('AtprotoPersonalDataServer'));
         if (service) {
-            return idOf(firstOfSet(service.serviceEndpoint));
+            return ldIdOf(firstOfSet(service.serviceEndpoint));
         }
     }
 
