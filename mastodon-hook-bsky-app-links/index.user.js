@@ -144,7 +144,7 @@
             ('@id' in x && typeof x['@id'] !== 'string') ||
             ('id' in x && typeof x.id !== 'string')
         )) {
-            throw Error('Argument is not an `@id`');
+            throw TypeError('Argument is not an `@id`');
         }
     }
 
@@ -154,7 +154,7 @@
      */
     function assertHasLdType(x) {
         if (('@type' in x && !isLdTypeValue(x['@type'])) || ('type' in x && !isLdTypeValue(x.type))) {
-            throw Error('@type must be a string or an array of strings');
+            throw TypeError('@type must be a string or an array of strings');
         }
     }
 
