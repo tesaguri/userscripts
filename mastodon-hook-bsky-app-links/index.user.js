@@ -404,14 +404,16 @@
 
     }
 
+    /** @type {Set<string>} */
     const bridgedAuthorities = new Set();
     /**
      * @param {string} authority
      * @returns {Promise<boolean>}
      */
     async function checkBridge(authority) {
-        return bridgedAuthorities.has(authority) ||
-            fetch(bridgeUrlFromComponents(authority), {
+        return bridgedAuthorities.has(authority)
+            || (authority in resolvedHandles && bridgedAuthorities.has(/** @type {string} */ (resolvedHandles[authority])))
+            || fetch(bridgeUrlFromComponents(authority), {
                 method: 'HEAD',
                 headers: acceptAs2Headers,
                 referrer: '',
