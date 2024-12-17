@@ -1,14 +1,25 @@
 // ==UserScript==
-// @name        fedibird.com - Hook bsky.app links
+// @name        fedibird.com - Open bsky.app links via Bridgy Fed
 // @namespace   https://github.com/tesaguri
 // @match       https://fedibird.com/web/*
-// @grant       none
+// @grant       GM.getValue
 // @version     1.0.0
 // @updateURL   https://github.com/tesaguri/userscripts/raw/main/mastodon-hook-bsky-app-links/index.user.js
 // @author      Daiki "tesaguri" Mizukami
 // @license     GPL-3.0-only; https://www.gnu.org/licenses/gpl-3.0.txt
-// @description Open bsky.app links via Bridgy Fed or PDS
+// @description Open bsky.app links via Bridgy Fed (or optionally via corresponding PDS)
 // ==/UserScript==
+
+/**
+ * @typedef {object} Config - Optional configurations to be stored in the script storage.
+ * @property {FallbackBehavior} [fallbackBehavior]
+ */
+/**
+ * @typedef {object} FallbackBehavior
+ * @property {'openPds' | 'default'} [atproto] - Fallback behavior when the atproto resource isn't bridged via Bridgy Fed.
+ *     - `openPds` - Open the resource via its corresponding PDS endpoint.
+ *     - `default` - Open the original AppView URL.
+ */
 
 /**
  * @template T
@@ -30,7 +41,13 @@
     // INIT
 
     const acceptAs2Headers = new Headers([['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
-    addEventListener('click', e => {
+    addEventListener('click', clickEventListener);
+
+    /**
+     * @param {MouseEvent} e
+     * @returns {void}
+     */
+    function clickEventListener(e) {
         const target = e.target;
         if (!(target instanceof HTMLAnchorElement) || !target.classList.contains('unhandled-link') || !target.href.startsWith('https://bsky.app/profile/') || target.classList.contains('status-url-link')) {
             return;
@@ -41,6 +58,9 @@
             return;
         }
 
+        // Speculatively preventing the default action because `preventDefault` would have no effect
+        // in the async callback called after checking the bridge status.
+        // Instead, we'll retry the click event in the fallback procedure where appropriate.
         e.preventDefault();
 
         let authority = components[0];
@@ -53,12 +73,12 @@
                         submitSearch(bridgeUrlFromComponents(authority, collection, rkey));
                         return;
                     }
-                    safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
+                    await atFallback(target, authority, collection, rkey);
                 });
         } else {
-            pdsXrpcUrlForComponents(authority, collection, rkey).then(safeOpen);
+            atFallback(target, authority, collection, rkey);
         }
-    });
+    }
 
     // UTILITIES - Generic
 
@@ -268,6 +288,49 @@
     }
 
     // UTILITIES - AT Protocol
+
+    /**
+     * @overload
+     * @param {HTMLAnchorElement} eventTarget
+     * @param {string} authority
+     * @returns {Promise<void>}
+     */
+    /**
+     * @overload
+     * @param {HTMLAnchorElement} eventTarget
+     * @param {string} authority
+     * @param {string | undefined} collection
+     * @param {string | undefined} rkey
+     * @returns {Promise<void>}
+     */
+    /**
+     * @param {HTMLAnchorElement} eventTarget
+     * @param {string} authority
+     * @param {string} [collection]
+     * @param {string} [rkey]
+     * @returns {Promise<void>}
+     */
+    async function atFallback(eventTarget, authority, collection, rkey) {
+        /** @type {FallbackBehavior?} */
+        let fallbackBehavior = await GM.getValue('fallbackBehavior', {});
+        if (typeof fallbackBehavior !== 'object') {
+            console.warn(`${GM.info.script.name}: \`config.fallbackBehavior\` must be an object`);
+            fallbackBehavior = {};
+        }
+        switch (fallbackBehavior?.atproto) {
+            case 'openPds':
+                safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
+                break;
+            default:
+                try {
+                    removeEventListener('click', clickEventListener);
+                    // Using `click()` because `event.target.dispatchEvent(event)` won't open the link.
+                    eventTarget.click();
+                } finally {
+                    addEventListener('click', clickEventListener);
+                }
+        }
+    }
 
     const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
     /** @type {Record<string, DidString>} */
