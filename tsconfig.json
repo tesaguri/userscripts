@@ -12,6 +12,7 @@
   },
   "include": ["*/**/*.js", "*/**/*.ts"],
   "exclude": [
-    "fedibird-hook-bsky-app-links/"
+    "fedibird-hook-bsky-app-links/",
+    "mastodon-hook-bsky-app-links"
   ]
 }

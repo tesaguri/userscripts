@@ -1,7 +1,6 @@
 // ==UserScript==
-// @name        fedibird.com - Open bsky.app links via Bridgy Fed
+// @name        Mastodon - Open bsky.app links via Bridgy Fed
 // @namespace   https://github.com/tesaguri
-// @match       https://fedibird.com/web/*
 // @grant       GM.getValue
 // @version     1.0.0
 // @updateURL   https://github.com/tesaguri/userscripts/raw/main/mastodon-detect-bridge/index.user.js
