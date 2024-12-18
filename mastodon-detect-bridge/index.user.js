@@ -11,14 +11,20 @@
 // ==/UserScript==
 
 /**
- * @typedef {object} Config - Optional configurations to be stored in the script storage.
- * @property {FallbackBehavior} [fallbackBehavior]
+ * Optional configurations to be stored in the script storage.
+ * @typedef {object} Config
+ * @property {AtprotoConfig} [atproto]
  */
 /**
- * @typedef {object} FallbackBehavior
- * @property {'openPds' | 'default'} [atproto] - Fallback behavior when the atproto resource isn't bridged via Bridgy Fed.
- *     - `openPds` - Open the resource via its corresponding PDS endpoint.
- *     - `default` - Open the original AppView URL.
+ * Configurations specific to AT Protocol.
+ * @typedef {object} AtprotoConfig
+ * @property {AtprotoFallbackBehavior} [fallbackBehavior]
+ */
+/**
+ * Fallback behavior when an atproto resource isn't bridged via Bridgy Fed.
+ * - `openPds` - Open the resource via its corresponding PDS endpoint.
+ * - `default` - Open the original AppView URL.
+ * @typedef {'openPds' | 'default'} AtprotoFallbackBehavior
  */
 
 /**
@@ -105,22 +111,22 @@
      */
     function setFallbackBehavior(value) {
         if (typeof value === 'object' && value) {
-            /** @type {FallbackBehavior} */
-            config.fallbackBehavior = config.fallbackBehavior || {};
-            if ('atproto' in value) {
-                if (typeof value.atproto !== 'string') {
+            /** @type {AtprotoConfig} */
+            config.atproto = config.atproto || {};
+            if ('fallbackBehavior' in value) {
+                if (typeof value.fallbackBehavior !== 'string') {
                     console.warn(`${GM.info.script.name}: \`config.fallbackBehavior.atproto\` must be a string`);
-                    delete config.fallbackBehavior.atproto;
-                } else if (value.atproto !== 'openPds' && value.atproto !== 'default') {
-                    console.warn(`${GM.info.script.name}: unknown value for \`config.fallbackBehavior.atproto\`: ${value.atproto}`);
-                    delete config.fallbackBehavior.atproto;
+                    delete config.atproto.fallbackBehavior;
+                } else if (value.fallbackBehavior !== 'openPds' && value.fallbackBehavior !== 'default') {
+                    console.warn(`${GM.info.script.name}: unknown value for \`config.atproto.fallbackBehavior\`: ${value.fallbackBehavior}`);
+                    delete config.atproto.fallbackBehavior;
                 } else {
-                    config.fallbackBehavior.atproto = value.atproto;
+                    config.atproto.fallbackBehavior = value.fallbackBehavior;
                 }
             }
         } else {
             console.warn(`${GM.info.script.name}: \`config.fallbackBehavior\` must be an object`);
-            delete config.fallbackBehavior;
+            delete config.atproto;
         }
     }
 
@@ -365,7 +371,7 @@
      */
     async function atprotoFallback(event, authority, collection, rkey) {
         await initFallbackBehavior;
-        switch (config.fallbackBehavior?.atproto) {
+        switch (config.atproto?.fallbackBehavior) {
             case 'openPds':
                 event.preventDefault();
                 safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
