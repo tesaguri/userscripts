@@ -52,7 +52,7 @@
             return;
         }
 
-        const components = atComponentsFromBskyUrl(target.href);
+        const components = atprotoComponentsFromBskyUrl(target.href);
         if (!components) {
             return;
         }
@@ -69,13 +69,13 @@
             checkBridge(authority)
                 .then(async isBridged => {
                     if (isBridged) {
-                        submitSearch(bridgeUrlFromComponents(authority, collection, rkey));
+                        submitSearch(bridgeUrlFromAtprotoComponents(authority, collection, rkey));
                         return;
                     }
-                    await atFallback(target, authority, collection, rkey);
+                    await atprotoFallback(target, authority, collection, rkey);
                 });
         } else {
-            atFallback(target, authority, collection, rkey);
+            atprotoFallback(target, authority, collection, rkey);
         }
     }
 
@@ -309,7 +309,7 @@
      * @param {string} [rkey]
      * @returns {Promise<void>}
      */
-    async function atFallback(eventTarget, authority, collection, rkey) {
+    async function atprotoFallback(eventTarget, authority, collection, rkey) {
         /** @type {FallbackBehavior?} */
         let fallbackBehavior = await GM.getValue('fallbackBehavior', {});
         if (typeof fallbackBehavior !== 'object') {
@@ -338,12 +338,12 @@
      * @param {string} handle
      * @returns {Promise<DidString | void>}
      */
-    async function resolveAtHandle(handle) {
+    async function resolveAtprotoHandle(handle) {
         handle = handle.toLowerCase();
         if (handle in resolvedHandles) {
             return resolvedHandles[handle];
         }
-        const ret = await resolveAtHandleInner(handle);
+        const ret = await resolveAtprotoHandleInner(handle);
         if (ret) {
             resolvedHandles[handle] = ret;
             return ret;
@@ -354,7 +354,7 @@
      * @param {string} handle
      * @returns {Promise<DidString | void>}
      */
-    async function resolveAtHandleInner(handle) {
+    async function resolveAtprotoHandleInner(handle) {
         try {
             const res = await fetch(`https://cloudflare-dns.com/dns-query?name=_atproto.${handle}&type=TXT`, {
                 headers: acceptDnsJsonHeaders,
@@ -428,7 +428,7 @@
         if (isDidString(authority)) {
             did = authority;
         } else {
-            did = await resolveAtHandle(authority);
+            did = await resolveAtprotoHandle(authority);
             if (!did) {
                 throw Error(`Unable to resolve handle at://${authority}`);
             }
@@ -459,7 +459,7 @@
      * @param {string} [rkey]
      * @returns {string}
      */
-    function bridgeUrlFromComponents(authority, collection, rkey) {
+    function bridgeUrlFromAtprotoComponents(authority, collection, rkey) {
         return rkey === undefined
             ? `https://bsky.brid.gy/ap/${authority}`
             : `https://bsky.brid.gy/convert/ap/at://${authority}/${collection}/${rkey}`;
@@ -475,7 +475,7 @@
     async function checkBridge(authority) {
         return bridgedAuthorities.has(authority)
             || (authority in resolvedHandles && bridgedAuthorities.has(/** @type {string} */ (resolvedHandles[authority])))
-            || fetch(bridgeUrlFromComponents(authority), {
+            || fetch(bridgeUrlFromAtprotoComponents(authority), {
                 method: 'HEAD',
                 headers: acceptAs2Headers,
                 referrer: '',
@@ -495,7 +495,7 @@
      * @param {string} url
      * @returns {[string] | [string, string, string] | void}
      */
-    function atComponentsFromBskyUrl(url) {
+    function atprotoComponentsFromBskyUrl(url) {
         const segments = url.split('/');
         const authority = segments[4];
         if (authority === undefined) {
