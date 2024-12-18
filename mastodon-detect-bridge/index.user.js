@@ -48,35 +48,39 @@
      * @returns {void}
      */
     function clickEventListener(e) {
-        const target = e.target;
-        if (!(target instanceof HTMLAnchorElement) || !target.classList.contains('unhandled-link') || !target.href.startsWith('https://bsky.app/profile/') || target.classList.contains('status-url-link')) {
+        if (!(e.target instanceof HTMLAnchorElement) || !e.target.classList.contains('unhandled-link') || !e.target.href.startsWith('https://bsky.app/profile/') || e.target.classList.contains('status-url-link')) {
             return;
         }
 
-        const components = atprotoComponentsFromBskyUrl(target.href);
+        const components = atprotoComponentsFromBskyUrl(e.target.href);
         if (!components) {
             return;
         }
 
-        // Speculatively preventing the default action because `preventDefault` would have no effect
-        // in the async callback called after checking the bridge status.
-        // Instead, we'll retry the click event in the fallback procedure where appropriate.
-        e.preventDefault();
+        // XXX: We've checked that `e.target` is an `HTMLAnchorElement`, but still need to convince
+        // `tsc`.
+        /** @type {MouseEvent & { target: HTMLAnchorElement }} */
+        const event = /** @type {any} */ (e);
 
         const authority = components[0];
         const collection = components[1];
         const rkey = components[2];
         if (collection === undefined || collection === 'app.bsky.feed.post') {
+            // Speculatively preventing the default action because `preventDefault` would have no
+            // effect in the async callback called after checking the bridge status.
+            // Instead, we'll retry the click event in the fallback procedure where appropriate.
+            e.preventDefault();
+
             checkBridge(authority)
                 .then(async isBridged => {
                     if (isBridged) {
                         submitSearch(bridgeUrlFromAtprotoComponents(authority, collection, rkey));
                         return;
                     }
-                    await atprotoFallback(target, authority, collection, rkey);
+                    await atprotoFallback(event, authority, collection, rkey);
                 });
         } else {
-            atprotoFallback(target, authority, collection, rkey);
+            atprotoFallback(event, authority, collection, rkey);
         }
     }
 
@@ -323,38 +327,41 @@
 
     /**
      * @overload
-     * @param {HTMLAnchorElement} eventTarget
+     * @param {Event & { target: HTMLAnchorElement }} event
      * @param {string} authority
      * @returns {Promise<void>}
      */
     /**
      * @overload
-     * @param {HTMLAnchorElement} eventTarget
+     * @param {Event & { target: HTMLAnchorElement }} event
      * @param {string} authority
      * @param {string | undefined} collection
      * @param {string | undefined} rkey
      * @returns {Promise<void>}
      */
     /**
-     * @param {HTMLAnchorElement} eventTarget
+     * @param {Event & { target: HTMLAnchorElement }} event
      * @param {string} authority
      * @param {string} [collection]
      * @param {string} [rkey]
      * @returns {Promise<void>}
      */
-    async function atprotoFallback(eventTarget, authority, collection, rkey) {
+    async function atprotoFallback(event, authority, collection, rkey) {
         await initFallbackBehavior;
         switch (config.fallbackBehavior?.atproto) {
             case 'openPds':
+                event.preventDefault();
                 safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
                 break;
             default:
-                try {
-                    removeEventListener('click', clickEventListener);
-                    // Using `click()` because `event.target.dispatchEvent(event)` won't open the link.
-                    eventTarget.click();
-                } finally {
-                    addEventListener('click', clickEventListener);
+                if (event.defaultPrevented) {
+                    try {
+                        removeEventListener('click', clickEventListener);
+                        // Using `click()` because `event.target.dispatchEvent(event)` won't open the link.
+                        event.target.click();
+                    } finally {
+                        addEventListener('click', clickEventListener);
+                    }
                 }
         }
     }
