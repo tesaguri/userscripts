@@ -374,8 +374,13 @@
         switch (config.atproto?.fallbackBehavior) {
             case 'openPds':
                 event.preventDefault();
-                safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
-                break;
+                const url = await pdsXrpcUrlForComponents(authority, collection, rkey);
+                if (url !== undefined) {
+                    safeOpen(url);
+                    break;
+                }
+                console.warn(`Missing PDS for ${authority}`);
+                // Fall-through
             default:
                 if (event.defaultPrevented) {
                     try {
@@ -471,20 +476,20 @@
     /**
      * @overload
      * @param {string} authority
-     * @returns {Promise<string>}
+     * @returns {Promise<string | void>}
      */
     /**
      * @overload
      * @param {string} authority
      * @param {string | undefined} collection
      * @param {string | undefined} rkey
-     * @returns {Promise<string>}
+     * @returns {Promise<string | void>}
      */
     /**
      * @param {string} authority
      * @param {string} [collection]
      * @param {string} [rkey]
-     * @returns {Promise<string>}
+     * @returns {Promise<string | void>}
      */
     async function pdsXrpcUrlForComponents(authority, collection, rkey) {
         let did;
@@ -498,6 +503,10 @@
         }
 
         const pds = pdsFromDidDoc(await resolveDid(did));
+        if (pds === undefined) {
+            return;
+        }
+
         if (rkey === undefined) {
             return `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`;
         } else {
