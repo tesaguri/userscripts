@@ -2,6 +2,7 @@
 // @name        Mastodon - Open bsky.app links via Bridgy Fed
 // @namespace   https://github.com/tesaguri
 // @grant       GM.getValue
+// @grant       GM_addValueChangeListener
 // @version     1.0.0
 // @updateURL   https://github.com/tesaguri/userscripts/raw/main/mastodon-detect-bridge/index.user.js
 // @author      Daiki "tesaguri" Mizukami
@@ -79,7 +80,39 @@
         }
     }
 
+    /** @type {Config} */
+    let config = {};
+    const initFallbackBehavior = GM.getValue('fallbackBehavior').then(setFallbackBehavior);
+    GM_addValueChangeListener('fallbackBehavior', (_name, _oldValue, value) => {
+        setFallbackBehavior(value);
+    });
+
     // UTILITIES - Generic
+
+    /**
+     * @param {unknown} value
+     * @returns {void}
+     */
+    function setFallbackBehavior(value) {
+        if (typeof value === 'object' && value) {
+            /** @type {FallbackBehavior} */
+            config.fallbackBehavior = config.fallbackBehavior || {};
+            if ('atproto' in value) {
+                if (typeof value.atproto !== 'string') {
+                    console.warn(`${GM.info.script.name}: \`config.fallbackBehavior.atproto\` must be a string`);
+                    delete config.fallbackBehavior.atproto;
+                } else if (value.atproto !== 'openPds' && value.atproto !== 'default') {
+                    console.warn(`${GM.info.script.name}: unknown value for \`config.fallbackBehavior.atproto\`: ${value.atproto}`);
+                    delete config.fallbackBehavior.atproto;
+                } else {
+                    config.fallbackBehavior.atproto = value.atproto;
+                }
+            }
+        } else {
+            console.warn(`${GM.info.script.name}: \`config.fallbackBehavior\` must be an object`);
+            delete config.fallbackBehavior;
+        }
+    }
 
     /**
      * @param {string | URL} [url]
@@ -310,13 +343,8 @@
      * @returns {Promise<void>}
      */
     async function atprotoFallback(eventTarget, authority, collection, rkey) {
-        /** @type {FallbackBehavior?} */
-        let fallbackBehavior = await GM.getValue('fallbackBehavior', {});
-        if (typeof fallbackBehavior !== 'object') {
-            console.warn(`${GM.info.script.name}: \`config.fallbackBehavior\` must be an object`);
-            fallbackBehavior = {};
-        }
-        switch (fallbackBehavior?.atproto) {
+        await initFallbackBehavior;
+        switch (config.fallbackBehavior?.atproto) {
             case 'openPds':
                 safeOpen(await pdsXrpcUrlForComponents(authority, collection, rkey));
                 break;

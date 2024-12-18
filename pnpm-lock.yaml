@@ -8,9 +8,9 @@ importers:
 
   .:
     devDependencies:
-      '@types/greasemonkey':
-        specifier: ^4.0.7
-        version: 4.0.7
+      '@types/tampermonkey':
+        specifier: ^5.0.4
+        version: 5.0.4
       better-typescript-lib:
         specifier: ^2.10.0
         version: 2.10.0(typescript@5.7.2)
@@ -105,8 +105,8 @@ packages:
     peerDependencies:
       typescript: '>=4.5.2'
 
-  '@types/greasemonkey@4.0.7':
-    resolution: {integrity: sha512-DuYBRf/T4zixO/xhQ3eicZCBjjOgbSSXuHP5XkLNf/UBayrJpBniP9il/AQaPy0lffl4Bco48zgHL+pZmQ6Q0A==}
+  '@types/tampermonkey@5.0.4':
+    resolution: {integrity: sha512-HEJ0O5CkDZSwIgd9Zip4xM8o7gZC8zBmJuH1YEXNINIC+aCWEXD10pnpo3NQG5IWHx+Xr4fMSGq1jqeKXH2lpA==}
 
   better-typescript-lib@2.10.0:
     resolution: {integrity: sha512-ZimEfuBVHq7r+k1dJ/qBh69VKbFgyzc1dY1DDOHtOrtCyn8Yaa6GWedScTjQPqBQieDiCPpoPi+AxJWYDA8UDA==}
@@ -188,7 +188,7 @@ snapshots:
     dependencies:
       typescript: 5.7.2
 
-  '@types/greasemonkey@4.0.7': {}
+  '@types/tampermonkey@5.0.4': {}
 
   better-typescript-lib@2.10.0(typescript@5.7.2):
     dependencies:

@@ -3,7 +3,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@types/greasemonkey": "^4.0.7",
+		"@types/tampermonkey": "^5.0.4",
 		"better-typescript-lib": "^2.10.0",
 		"typescript": "^5.7.2"
 	}
