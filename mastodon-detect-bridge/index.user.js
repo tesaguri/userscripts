@@ -71,7 +71,7 @@
 
         // XXX: We've checked that `e.target` is an `HTMLAnchorElement`, but still need to convince
         // `tsc`.
-        /** @type {MouseEvent & { target: HTMLAnchorElement }} */
+        /** @type {typeof e & { readonly target: HTMLAnchorElement }} */
         const event = /** @type {any} */ (e);
 
         const authority = components[0];
@@ -97,7 +97,7 @@
     }
 
     /** @type {Config} */
-    let config = {};
+    let config = Object.create(null);
     const initFallbackBehavior = GM.getValue('fallbackBehavior').then(setFallbackBehavior);
     GM_addValueChangeListener('fallbackBehavior', (_name, _oldValue, value) => {
         setFallbackBehavior(value);
@@ -112,7 +112,7 @@
     function setFallbackBehavior(value) {
         if (typeof value === 'object' && value) {
             /** @type {AtprotoConfig} */
-            config.atproto = config.atproto || {};
+            config.atproto = config.atproto || Object.create(null);
             if ('fallbackBehavior' in value) {
                 if (typeof value.fallbackBehavior !== 'string') {
                     console.warn(`${GM.info.script.name}: \`config.fallbackBehavior.atproto\` must be a string`);
@@ -238,7 +238,7 @@
      * @returns {t is string[] | string}
      */
     function isLdTypeValue(t) {
-        if (t instanceof Array) {
+        if (Array.isArray(t)) {
             return t.every(x => typeof x === 'string');
         } else {
             return typeof t === 'string';
@@ -312,7 +312,7 @@
      * @returns {(T | null)[]}
      */
     function asArray(value) {
-        if (value instanceof Array) {
+        if (Array.isArray(value)) {
             return value;
         } else if (value === null || value === undefined) {
             return [];
@@ -339,7 +339,7 @@
      * @returns {(T | undefined)?}
      */
     function firstOfSet(set) {
-        if (set instanceof Array) {
+        if (Array.isArray(set)) {
             return set.find(x => x !== null);
         } else {
             return set;
@@ -350,20 +350,20 @@
 
     /**
      * @overload
-     * @param {Event & { target: HTMLAnchorElement }} event
+     * @param {Event & { readonly target: HTMLAnchorElement }} event
      * @param {string} authority
      * @returns {Promise<void>}
      */
     /**
      * @overload
-     * @param {Event & { target: HTMLAnchorElement }} event
+     * @param {Event & { readonly target: HTMLAnchorElement }} event
      * @param {string} authority
      * @param {string | undefined} collection
      * @param {string | undefined} rkey
      * @returns {Promise<void>}
      */
     /**
-     * @param {Event & { target: HTMLAnchorElement }} event
+     * @param {Event & { readonly target: HTMLAnchorElement }} event
      * @param {string} authority
      * @param {string} [collection]
      * @param {string} [rkey]
@@ -391,7 +391,7 @@
 
     const acceptDnsJsonHeaders = new Headers([['accept', 'application/dns-json']]);
     /** @type {Record<string, DidString>} */
-    const resolvedHandles = {};
+    const resolvedHandles = Object.create(null);
     /**
      * @param {string} handle
      * @returns {Promise<DidString | void>}
@@ -422,7 +422,7 @@
                 // We are intentionally loose about the `any` type here because a `TypeError` would
                 // be caught by the `try` block just fine.
                 const answers = /** @type {any} */ (await res.json()).Answer;
-                if (answers instanceof Array) {
+                if (Array.isArray(answers)) {
                     const expectedName = `_atproto.${handle}`;
                     for (const answer of answers) {
                         /** @type {any} */
