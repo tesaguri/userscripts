@@ -40,15 +40,21 @@
 (() => {
     // INIT
 
-    const acceptAs2Headers = new Headers([['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
     addEventListener('click', clickEventListener);
-
+    const acceptAs2Headers = new Headers([
+        ['accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'],
+    ]);
     /**
      * @param {MouseEvent} e
      * @returns {void}
      */
     function clickEventListener(e) {
-        if (!(e.target instanceof HTMLAnchorElement) || !e.target.classList.contains('unhandled-link') || !e.target.href.startsWith('https://bsky.app/profile/') || e.target.classList.contains('status-url-link')) {
+        if (
+            !(e.target instanceof HTMLAnchorElement)
+            || !e.target.classList.contains('unhandled-link')
+            || !e.target.href.startsWith('https://bsky.app/profile/')
+            || e.target.classList.contains('status-url-link')
+        ) {
             return;
         }
 
@@ -145,8 +151,12 @@
         input.focus();
 
         // <https://hustle.bizongo.in/simulate-react-on-change-on-controlled-components-baa336920e04>
-        const valueProperty = /** @type {NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
-        const setValue = /** @type {NonNullable<typeof valueProperty.set>} */ (valueProperty.set);
+        const valueProperty =
+            /** @type {NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>} */
+            (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'));
+        const setValue =
+            /** @type {NonNullable<typeof valueProperty.set>} */
+            (valueProperty.set);
         setValue.call(input, query);
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
@@ -197,8 +207,8 @@
      */
     function assertIsLdId(x) {
         if (typeof x !== 'string' && (
-            ('@id' in x && typeof x['@id'] !== 'string') ||
-            ('id' in x && typeof x.id !== 'string')
+            ('@id' in x && typeof x['@id'] !== 'string')
+            || ('id' in x && typeof x.id !== 'string')
         )) {
             throw TypeError('Argument is not an `@id`');
         }
@@ -209,7 +219,10 @@
      * @returns {asserts x is HasLdType}
      */
     function assertHasLdType(x) {
-        if (('@type' in x && !isLdTypeValue(x['@type'])) || ('type' in x && !isLdTypeValue(x.type))) {
+        if (
+            ('@type' in x && !isLdTypeValue(x['@type']))
+            || ('type' in x && !isLdTypeValue(x.type))
+        ) {
             throw TypeError('@type must be a string or an array of strings');
         }
     }
@@ -269,7 +282,11 @@
      * @returns {string[]}
      */
     function ldTypeOf(node) {
-        return '@type' in node ? asArray(node['@type']) : asArray(node.type);
+        if ('@type' in node) {
+            return asArray(node['@type']);
+        } else {
+            return asArray(node.type);
+        }
     }
 
     /**
@@ -404,7 +421,12 @@
                     for (const answer of answers) {
                         /** @type {any} */
                         const ans = answer;
-                        if (ans.name === expectedName && ans.type === 16 && ans.data?.startsWith('"did=did:') && ans.data.endsWith('"')) {
+                        if (
+                            ans.name === expectedName
+                            && ans.type === 16
+                            && ans.data?.startsWith('"did=did:')
+                            && ans.data.endsWith('"')
+                        ) {
                             return ans.data.slice(5, -1);
                         }
                     }
@@ -468,10 +490,13 @@
                 throw Error(`Unable to resolve handle at://${authority}`);
             }
         }
+
         const pds = pdsFromDidDoc(await resolveDid(did));
-        return rkey === undefined
-            ? `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`
-            : `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
+        if (rkey === undefined) {
+            return `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`;
+        } else {
+            return `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
+        }
     }
 
     // UTILITIES - Bridgy Fed
@@ -495,9 +520,11 @@
      * @returns {string}
      */
     function bridgeUrlFromAtprotoComponents(authority, collection, rkey) {
-        return rkey === undefined
-            ? `https://bsky.brid.gy/ap/${authority}`
-            : `https://bsky.brid.gy/convert/ap/at://${authority}/${collection}/${rkey}`;
+        if (rkey === undefined) {
+            return `https://bsky.brid.gy/ap/${authority}`;
+        } else {
+            return `https://bsky.brid.gy/convert/ap/at://${authority}/${collection}/${rkey}`;
+        }
 
     }
 
@@ -509,7 +536,10 @@
      */
     async function checkBridge(authority) {
         return bridgedAuthorities.has(authority)
-            || (authority in resolvedHandles && bridgedAuthorities.has(/** @type {string} */ (resolvedHandles[authority])))
+            || (
+                authority in resolvedHandles
+                && bridgedAuthorities.has(/** @type {string} */(resolvedHandles[authority]))
+            )
             || fetch(bridgeUrlFromAtprotoComponents(authority), {
                 method: 'HEAD',
                 headers: acceptAs2Headers,
