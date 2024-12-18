@@ -62,7 +62,7 @@
         // Instead, we'll retry the click event in the fallback procedure where appropriate.
         e.preventDefault();
 
-        let authority = components[0];
+        const authority = components[0];
         const collection = components[1];
         const rkey = components[2];
         if (collection === undefined || collection === 'app.bsky.feed.post') {
