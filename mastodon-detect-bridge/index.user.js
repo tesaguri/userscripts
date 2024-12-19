@@ -64,8 +64,8 @@
             return;
         }
 
-        const components = atprotoComponentsFromBskyUrl(e.target.href);
-        if (!components) {
+        const atUri = AtUri.fromBskyUrl(e.target.href);
+        if (!atUri) {
             return;
         }
 
@@ -74,25 +74,22 @@
         /** @type {typeof e & { readonly target: HTMLAnchorElement }} */
         const event = /** @type {any} */ (e);
 
-        const authority = components[0];
-        const collection = components[1];
-        const rkey = components[2];
-        if (collection === undefined || collection === 'app.bsky.feed.post') {
+        if (!('collection' in atUri) || atUri.collection === 'app.bsky.feed.post') {
             // Speculatively preventing the default action because `preventDefault` would have no
             // effect in the async callback called after checking the bridge status.
             // Instead, we'll retry the click event in the fallback procedure where appropriate.
             e.preventDefault();
 
-            checkBridge(authority)
+            checkBridge(atUri)
                 .then(async isBridged => {
                     if (isBridged) {
-                        submitSearch(bridgeUrlFromAtprotoComponents(authority, collection, rkey));
+                        submitSearch(bridgeUrlFromAtUri(atUri));
                         return;
                     }
-                    await atprotoFallback(event, authority, collection, rkey);
+                    await atprotoFallback(event, atUri);
                 });
         } else {
-            atprotoFallback(event, authority, collection, rkey);
+            atprotoFallback(event, atUri);
         }
     }
 
@@ -348,38 +345,154 @@
 
     // UTILITIES - AT Protocol
 
+    class AtUri {
+        /**
+         * @typedef {{ authority: string, collection?: string } | { authority: string, collection: string, rkey?: string }} AtUriComponents
+         * @typedef {{ authority: string }} AtUriAuthority
+         * @typedef {AtUriAuthority & { collection: string }} AtUriCollection
+         * @typedef {AtUriCollection & { rkey: string }} AtUriRecord
+         * @typedef {AtUri & { components: AtUriComponents & { authority: DidString } }} AtUriWithDid
+         */
+
+        /** @type {AtUriComponents} */
+        components;
+
+        /**
+         * @overload
+         * @param {string} authority
+         */
+        /**
+         * @overload
+         * @param {string} authority
+         * @param {string} collection
+         */
+        /**
+         * @overload
+         * @param {string} authority
+         * @param {string} collection
+         * @param {string} rkey
+         */
+        /**
+         * @overload
+         * @param {AtUriComponents} components
+         */
+        /**
+         * @param {string | AtUriComponents} authorityOrComponents
+         * @param {string} [collection]
+         * @param {string} [rkey]
+         */
+        constructor(authorityOrComponents, collection, rkey) {
+            if (typeof authorityOrComponents === 'object') {
+                this.components = authorityOrComponents;
+            } else {
+                /** @type {Partial<AtUriRecord> & AtUriAuthority} */
+                const components = { authority: authorityOrComponents };
+                if (collection !== undefined) {
+                    components.collection = collection;
+                    if (rkey !== undefined) {
+                        components.rkey = rkey;
+                    }
+                }
+                this.components = components;
+            }
+        }
+
+        /**
+         * @param {string} url
+         * @returns {AtUri | void}
+         */
+        static fromBskyUrl(url) {
+            const segments = url.split('/');
+            const authority = segments[4];
+            if (authority === undefined) {
+                return;
+            }
+            const bskyCollection = segments[5];
+            if (bskyCollection === undefined) {
+                return new this(authority);
+            }
+            const rkey = segments[6];
+            let collection;
+            if (rkey !== undefined) {
+                switch (bskyCollection) {
+                    case 'post':
+                        collection = 'app.bsky.feed.post';
+                        break;
+                    case 'feed':
+                        collection = 'app.bsky.feed.generator';
+                        break;
+                }
+            }
+            if (collection !== undefined) {
+                if (rkey !== undefined) {
+                    return new this(authority, collection, rkey);
+                }
+                return new this(authority, collection);
+            }
+        }
+
+        /** @returns {typeof this.components.authority} */
+        get authority() {
+            return this.components.authority;
+        }
+
+        /** @returns {this is AtUriWithDid} */
+        authorityIsDidString() {
+            return isDidString(this.components.authority);
+        }
+
+        /** @returns {Promise<AtUriWithDid>} */
+        async withDidAuthority() {
+            if (this.authorityIsDidString()) {
+                return this;
+            } else {
+                const did = await resolveAtprotoHandle(this.authority);
+                if (!did) {
+                    throw Error(`Unable to resolve handle ${this.pickAuthority()}`);
+                }
+                /** @type {AtUriComponents & { authority: DidString }} */
+                const components = { ...this.components, authority: did };
+                return /** @type {AtUriWithDid} */ (new AtUri(components));
+            }
+        }
+
+        pickAuthority() {
+            if ('collection' in this) {
+                return new AtUri(this.authority);
+            } else {
+                return this;
+            }
+        }
+
+        toString() {
+            let ret = `at://${this.authority}`;
+            if ('collection' in this.components) {
+                ret += `/${this.components.collection}`;
+                if ('rkey' in this.components) {
+                    ret += `/${this.components.rkey}`;
+                }
+            }
+            return ret;
+        }
+    }
+
     /**
-     * @overload
      * @param {Event & { readonly target: HTMLAnchorElement }} event
-     * @param {string} authority
+     * @param {AtUri} uri
      * @returns {Promise<void>}
      */
-    /**
-     * @overload
-     * @param {Event & { readonly target: HTMLAnchorElement }} event
-     * @param {string} authority
-     * @param {string | undefined} collection
-     * @param {string | undefined} rkey
-     * @returns {Promise<void>}
-     */
-    /**
-     * @param {Event & { readonly target: HTMLAnchorElement }} event
-     * @param {string} authority
-     * @param {string} [collection]
-     * @param {string} [rkey]
-     * @returns {Promise<void>}
-     */
-    async function atprotoFallback(event, authority, collection, rkey) {
+    async function atprotoFallback(event, uri) {
         await initFallbackBehavior;
         switch (config.atproto?.fallbackBehavior) {
             case 'openPds':
                 event.preventDefault();
-                const url = await pdsXrpcUrlForComponents(authority, collection, rkey);
+                const uriWithDid = await uri.withDidAuthority();
+                const url = await pdsXrpcUrlForAtUri(uriWithDid);
                 if (url !== undefined) {
                     safeOpen(url);
                     break;
                 }
-                console.warn(`Missing PDS for ${authority}`);
+                console.warn(`Missing PDS for ${uri.authority}${uri.authorityIsDidString() ? '' : ` (${uriWithDid.authority})`}`);
                 // Fall-through
             default:
                 if (event.defaultPrevented) {
@@ -474,71 +587,37 @@
     }
 
     /**
-     * @overload
-     * @param {string} authority
+     * @param {AtUriWithDid} uri
      * @returns {Promise<string | void>}
      */
-    /**
-     * @overload
-     * @param {string} authority
-     * @param {string | undefined} collection
-     * @param {string | undefined} rkey
-     * @returns {Promise<string | void>}
-     */
-    /**
-     * @param {string} authority
-     * @param {string} [collection]
-     * @param {string} [rkey]
-     * @returns {Promise<string | void>}
-     */
-    async function pdsXrpcUrlForComponents(authority, collection, rkey) {
-        let did;
-        if (isDidString(authority)) {
-            did = authority;
-        } else {
-            did = await resolveAtprotoHandle(authority);
-            if (!did) {
-                throw Error(`Unable to resolve handle at://${authority}`);
-            }
-        }
-
-        const pds = pdsFromDidDoc(await resolveDid(did));
+    async function pdsXrpcUrlForAtUri(uri) {
+        const pds = pdsFromDidDoc(await resolveDid(uri.components.authority));
         if (pds === undefined) {
             return;
         }
 
-        if (rkey === undefined) {
-            return `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${did}`;
+        if ('collection' in uri.components) {
+            if ('rkey' in uri.components) {
+                return `${pds}/xrpc/com.atproto.repo.getRecord?repo=${uri.authority}&collection=${uri.components.collection}&rkey=${uri.components.rkey}`;
+            } else {
+                return `${pds}/xrpc/com.atproto.repo.listRecords?repo=${uri.authority}&collection=${uri.components.collection}`;
+            }
         } else {
-            return `${pds}/xrpc/com.atproto.repo.getRecord?repo=${did}&collection=${collection}&rkey=${rkey}`;
+            return `${pds}/xrpc/com.atproto.repo.describeRepo?repo=${uri.authority}`;
         }
     }
 
     // UTILITIES - Bridgy Fed
 
     /**
-     * @overload
-     * @param {string} authority
+     * @param {AtUri} uri
      * @returns {string}
      */
-    /**
-     * @overload
-     * @param {string} authority
-     * @param {string | undefined} collection
-     * @param {string | undefined} rkey
-     * @returns {string}
-     */
-    /**
-     * @param {string} authority
-     * @param {string} [collection]
-     * @param {string} [rkey]
-     * @returns {string}
-     */
-    function bridgeUrlFromAtprotoComponents(authority, collection, rkey) {
-        if (rkey === undefined) {
-            return `https://bsky.brid.gy/ap/${authority}`;
+    function bridgeUrlFromAtUri(uri) {
+        if ('collection' in uri.components) {
+            return `https://bsky.brid.gy/convert/ap/${uri}`;
         } else {
-            return `https://bsky.brid.gy/convert/ap/at://${authority}/${collection}/${rkey}`;
+            return `https://bsky.brid.gy/ap/${uri.authority}`;
         }
 
     }
@@ -546,53 +625,26 @@
     /** @type {Set<string>} */
     const bridgedAuthorities = new Set();
     /**
-     * @param {string} authority
+     * @param {AtUri} uri
      * @returns {Promise<boolean>}
      */
-    async function checkBridge(authority) {
-        return bridgedAuthorities.has(authority)
+    async function checkBridge(uri) {
+        return bridgedAuthorities.has(uri.authority)
             || (
-                authority in resolvedHandles
-                && bridgedAuthorities.has(/** @type {string} */(resolvedHandles[authority]))
+                uri.authority in resolvedHandles
+                && bridgedAuthorities.has(/** @type {string} */(resolvedHandles[uri.authority]))
             )
-            || fetch(bridgeUrlFromAtprotoComponents(authority), {
+            || fetch(bridgeUrlFromAtUri(uri), {
                 method: 'HEAD',
                 headers: acceptAs2Headers,
                 referrer: '',
             })
                 .then(res => {
                     if (res.ok) {
-                        bridgedAuthorities.add(authority);
+                        bridgedAuthorities.add(uri.authority);
                         return true;
                     }
                     return false;
                 });
-    }
-
-    // UTILITIES - Bluesky
-
-    /**
-     * @param {string} url
-     * @returns {[string] | [string, string, string] | void}
-     */
-    function atprotoComponentsFromBskyUrl(url) {
-        const segments = url.split('/');
-        const authority = segments[4];
-        if (authority === undefined) {
-            return;
-        }
-        const collection = segments[5];
-        if (collection === undefined) {
-            return [authority];
-        }
-        const rkey = segments[6];
-        if (rkey !== undefined) {
-            switch (collection) {
-                case 'post':
-                    return [authority, 'app.bsky.feed.post', rkey];
-                case 'feed':
-                    return [authority, 'app.bsky.feed.generator', rkey];
-            }
-        }
     }
 })();
