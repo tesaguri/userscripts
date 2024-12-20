@@ -95,9 +95,9 @@
 
     /** @type {Config} */
     let config = Object.create(null);
-    const initFallbackBehavior = GM.getValue('fallbackBehavior').then(setFallbackBehavior);
-    GM_addValueChangeListener('fallbackBehavior', (_name, _oldValue, value) => {
-        setFallbackBehavior(value);
+    const initFallbackBehavior = GM.getValue('atproto').then(setAtprotoConfig);
+    GM_addValueChangeListener('atproto', (_name, _oldValue, value) => {
+        setAtprotoConfig(value);
     });
 
     // UTILITIES - Generic
@@ -106,7 +106,7 @@
      * @param {unknown} value
      * @returns {void}
      */
-    function setFallbackBehavior(value) {
+    function setAtprotoConfig(value) {
         if (typeof value === 'object' && value) {
             /** @type {AtprotoConfig} */
             config.atproto = config.atproto || Object.create(null);
